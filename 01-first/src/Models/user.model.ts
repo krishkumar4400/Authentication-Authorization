@@ -1,6 +1,22 @@
-import mongoose, { Schema, model } from "mongoose";
+import mongoose, { Schema, model, Document } from "mongoose";
 
-const userSchema = new Schema({
+export interface IUser extends Document {
+    name: string;
+    email: string;
+    password: string;        // required
+    role: String,
+    isEmailVerified: Boolean,
+    emailVerifyOTP: String,
+    verifyOTPExpireAt: Date,
+    twoFactorEnabled: Boolean,
+    twoFactorSecret: String,
+    tokenVersion: String,
+    resetPasswordToken: String,
+    resetPasswordExpires: Date
+};
+
+
+const userSchema = new Schema<IUser>({
     name: {
         type: String,
         trim: true,
@@ -58,6 +74,6 @@ const userSchema = new Schema({
     timestamps: true
 });
 
-const User = model('user', userSchema);
+const User = model<IUser>('user', userSchema);
 
 export default User;
