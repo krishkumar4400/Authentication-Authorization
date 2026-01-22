@@ -2,9 +2,14 @@ import { Request, Response } from "express";
 import User from "../../Models/user.model.js";
 import { hashPassword, verifyPassword } from "../../utils/password.js";
 import { generateAccessToken } from "../../utils/jwtToken.js";
+import { sendMail } from "../../config/nodeMailer.js";
 
 
 const nodeEnv = process.env.NODE_ENV
+
+function getAppUrl() {
+    return process.env.APP_URL || `http://localhost:${process.env.PORT}`;
+}
 
 export async function register(req: Request, res: Response) {
     try {
@@ -20,19 +25,22 @@ export async function register(req: Request, res: Response) {
             });
         }
 
-        const hashedPassword = await hashPassword(password);
+        const hashedPassword: string = await hashPassword(password);
 
         user = await User.create({
             name, email: normalizedEmail, password: hashedPassword, role: "user"
         });
 
         // email verification
-
-
-
         const accessToken = generateAccessToken(user._id);
 
         const refreshToken = generateAccessToken(user._id);
+
+        const verifyUrl = `${getAppUrl}/auth/verify-email?token=${accessToken}`;
+
+        await sendMail(user.email, "Verify your email", `<p>Please verify your email by clicking this link:</p>\n
+            <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+            `)
 
         res
             .cookie("accessToken", accessToken, {
@@ -95,7 +103,7 @@ export async function login(req: Request, res: Response) {
             });
         }
 
-        const accessToken =  generateAccessToken(user._id);
+        const accessToken = generateAccessToken(user._id);
 
         const refreshToken = generateAccessToken(user._id);
 
@@ -127,3 +135,14 @@ export async function login(req: Request, res: Response) {
     }
 }
 
+
+export async function verifyEmail (req:Request, res:Response) {
+    try {
+        // const userId = req.userId;
+
+        
+
+    } catch (error) {
+        console.log("Error while verifying email\n", error);
+    }
+}
