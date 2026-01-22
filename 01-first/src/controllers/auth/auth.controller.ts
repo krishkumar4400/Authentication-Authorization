@@ -128,6 +128,14 @@ export async function login(req: Request, res: Response) {
             .json({
                 message: "You are login successfully",
                 success: true,
+                accessToken,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    role: user.role,
+                    isEmailVerified: user.isEmailVerified,
+                    twoFactorEnabled: user.twoFactorEnabled
+                }
             });
     } catch (error) {
         console.error("Login error\n", error);
