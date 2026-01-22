@@ -1,11 +1,11 @@
 import { Request, Response } from "express";
 import User from "../../Models/user.model.js";
 import { hashPassword, verifyPassword } from "../../utils/password.js";
-import { generateAccessToken } from "../../utils/jwtToken.js";
+import { generateAccessToken, generateRefreshToken } from "../../utils/jwtToken.js";
 import { sendMail } from "../../config/nodeMailer.js";
+import jwt from "jsonwebtoken";
 
-
-const nodeEnv = process.env.NODE_ENV
+const nodeEnv = process.env.NODE_ENV;
 
 function getAppUrl() {
     return process.env.APP_URL || `http://localhost:${process.env.PORT}`;
@@ -21,57 +21,61 @@ export async function register(req: Request, res: Response) {
         if (user) {
             return res.status(409).json({
                 message: "User already exists",
-                success: false
+                success: false,
             });
         }
 
         const hashedPassword: string = await hashPassword(password);
 
         user = await User.create({
-            name, email: normalizedEmail, password: hashedPassword, role: "user"
+            name,
+            email: normalizedEmail,
+            password: hashedPassword,
+            role: "user",
         });
 
         // email verification
-        const accessToken = generateAccessToken(user._id);
+        const accessToken = generateAccessToken(user._id, user.tokenVersion, user.role);
 
-        const refreshToken = generateAccessToken(user._id);
+        const refreshToken = generateRefreshToken(user._id, user.tokenVersion, user.role);
 
         const verifyUrl = `${getAppUrl}/auth/verify-email?token=${accessToken}`;
 
-        await sendMail(user.email, "Verify your email", `<p>Please verify your email by clicking this link:</p>\n
+        await sendMail(
+            user.email,
+            "Verify your email",
+            `<p>Please verify your email by clicking this link:</p>\n
             <p><a href="${verifyUrl}">${verifyUrl}</a></p>
-            `)
+            `,
+        );
 
         res
             .cookie("accessToken", accessToken, {
                 httpOnly: true,
                 secure: nodeEnv === "production",
-                sameSite: nodeEnv === "production" ? 'none' : 'lax',
-                maxAge: 15 * 60 * 1000
+                sameSite: nodeEnv === "production" ? "none" : "lax",
+                maxAge: 15 * 60 * 1000,
             })
             .cookie("refreshToken", refreshToken, {
                 httpOnly: true,
                 secure: nodeEnv === "production",
-                sameSite: nodeEnv === "production" ? 'none' : 'lax',
-                maxAge: 7 * 24 * 60 * 60 * 1000
+                sameSite: nodeEnv === "production" ? "none" : "lax",
+                maxAge: 7 * 24 * 60 * 60 * 1000,
             })
             .status(200)
             .json({
                 message: "User registered successfully",
-                success: true
+                success: true,
+                user: { accessToken },
             });
-
-
-
     } catch (error) {
         console.error("Register error\n", error);
         return res.status(500).json({
             success: false,
-            message: "Internal server error"
+            message: "Internal server error",
         });
     }
 }
-
 
 export async function login(req: Request, res: Response) {
     try {
@@ -84,14 +88,14 @@ export async function login(req: Request, res: Response) {
         if (!user) {
             return res.status(401).json({
                 message: "Incorrect email or password",
-                success: false
+                success: false,
             });
         }
 
         if (!user.password) {
             return res.status(500).json({
                 message: "User password missing",
-                success: false
+                success: false,
             });
         }
 
@@ -99,49 +103,80 @@ export async function login(req: Request, res: Response) {
         if (!isValid) {
             return res.status(401).json({
                 message: "Incorrect email or password",
-                success: false
+                success: false,
             });
         }
 
-        const accessToken = generateAccessToken(user._id);
+        const accessToken = generateAccessToken(user._id, user.tokenVersion, user.role);
 
-        const refreshToken = generateAccessToken(user._id);
+        const refreshToken = generateRefreshToken(user._id, user.tokenVersion, user.role);
 
         res
             .cookie("accessToken", accessToken, {
                 httpOnly: true,
                 secure: nodeEnv === "production",
-                sameSite: nodeEnv === "production" ? 'none' : 'lax',
-                maxAge: 15 * 60 * 1000
+                sameSite: nodeEnv === "production" ? "none" : "lax",
+                maxAge: 15 * 60 * 1000,
             })
             .cookie("refreshToken", refreshToken, {
                 httpOnly: true,
                 secure: nodeEnv === "production",
-                sameSite: nodeEnv === "production" ? 'none' : 'lax',
-                maxAge: 7 * 24 * 60 * 60 * 1000
+                sameSite: nodeEnv === "production" ? "none" : "lax",
+                maxAge: 7 * 24 * 60 * 60 * 1000,
             })
             .status(200)
             .json({
                 message: "You are login successfully",
-                success: true
+                success: true,
             });
-
     } catch (error) {
         console.error("Login error\n", error);
         return res.status(500).json({
             success: false,
-            message: "Internal server error"
+            message: "Internal server error",
         });
     }
 }
 
-
-export async function verifyEmail (req:Request, res:Response) {
+export async function verifyEmail(req: Request, res: Response) {
     try {
         // const userId = req.userId;
+        const { token } = req.query;
+        if (!token || typeof token !== "string") {
+            return res.status(400).json({
+                message: "Verification token is missing",
+                success: false,
+            });
+        }
 
-        
+        const payload = jwt.verify(
+            token,
+            process.env.JWT_ACCESS_SECRET!,
+        ) as jwt.JwtPayload;
 
+        const user = await User.findById(payload.userId);
+
+        if (!user) {
+            return res.status(400).json({
+                message: "Incorrect user id",
+                success: false,
+            });
+        }
+
+        if (user.isEmailVerified) {
+            return res.status(201).json({
+                message: "Email is already verified",
+                success: false,
+            });
+        }
+
+        user.isEmailVerified = true;
+        await user.save();
+
+        return res.status(200).json({
+            message: "Email is verified successfully",
+            success: true,
+        });
     } catch (error) {
         console.log("Error while verifying email\n", error);
     }

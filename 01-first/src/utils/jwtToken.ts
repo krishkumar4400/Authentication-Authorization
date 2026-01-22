@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 
 interface JwtPayload {
-    userId: string;
+    userId: string, tokenVersion: number, role:string
 }
 
 const accessSecret = process.env.JWT_ACCESS_SECRET;
@@ -16,10 +16,10 @@ if (!accessSecret || !refreshSecret) {
  * Generate Access Token (short-lived)
  */
 export const generateAccessToken = (
-    userId: mongoose.Types.ObjectId
+    userId: mongoose.Types.ObjectId, tokenVersion: number, role:string
 ): string => {
     const payload: JwtPayload = {
-        userId: userId.toString()
+        userId: userId.toString(), tokenVersion, role
     };
 
     return jwt.sign(payload, accessSecret, {
@@ -31,13 +31,17 @@ export const generateAccessToken = (
  * Generate Refresh Token (long-lived)
  */
 export const generateRefreshToken = (
-    userId: mongoose.Types.ObjectId
+    userId: mongoose.Types.ObjectId, tokenVersion: number, role:string
 ): string => {
     const payload: JwtPayload = {
-        userId: userId.toString()
+        userId: userId.toString(), tokenVersion, role
     };
 
     return jwt.sign(payload, refreshSecret, {
         expiresIn: "7d"
     });
 };
+
+// export const verifyToken = (token: string): object => {
+
+// }

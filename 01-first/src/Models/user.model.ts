@@ -3,16 +3,16 @@ import mongoose, { Schema, model, Document } from "mongoose";
 export interface IUser extends Document {
     name: string;
     email: string;
-    password: string;        // required
-    role: String,
-    isEmailVerified: Boolean,
-    emailVerifyOTP: String,
+    password: string;
+    role: string,
+    isEmailVerified: boolean,
+    emailVerifyOTP: string,
     verifyOTPExpireAt: Date,
-    twoFactorEnabled: Boolean,
-    twoFactorSecret: String,
-    tokenVersion: String,
-    resetPasswordToken: String,
-    resetPasswordExpires: Date
+    twoFactorEnabled: boolean,
+    twoFactorSecret: string,
+    tokenVersion: number,
+    resetPasswordToken: string,
+    resetPasswordExpires: Date,
 };
 
 
@@ -36,7 +36,8 @@ const userSchema = new Schema<IUser>({
     },
     role: {
         type: String,
-        enum: ['user', 'admin']
+        enum: ['user', 'admin'],
+        default: 'user'
     },
     isEmailVerified: {
         type: Boolean,
@@ -59,7 +60,7 @@ const userSchema = new Schema<IUser>({
         default: '',
     },
     tokenVersion: {
-        type: String,
+        type: Number,
         default: 0
     },
     resetPasswordToken: {
