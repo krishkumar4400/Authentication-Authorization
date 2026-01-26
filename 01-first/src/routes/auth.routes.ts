@@ -13,6 +13,7 @@ authRouter.post('/register', validate(registerSchema), register);
 // login route
 authRouter.post('/login', validate(loginSchema), login);
 
+// verify email route
 authRouter.get('/verify-email', isAuth, verifyEmail);
 
 authRouter.post('/refresh', refreshToken);
