@@ -13,9 +13,10 @@ authRouter.post('/register', validate(registerSchema), register);
 // login route
 authRouter.post('/login', validate(loginSchema), login);
 
-// verify email route
+// verify email routerefresh token handler done
 authRouter.get('/verify-email', isAuth, verifyEmail);
 
+// refresh token route
 authRouter.post('/refresh', refreshToken);
 
 export default authRouter;
