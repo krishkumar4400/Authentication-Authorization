@@ -251,6 +251,7 @@ export async function refreshToken(req: Request, res: Response) {
     }
 }
 
+//  controller function to verify refresh token if it is valid
 export function verifyRefreshToken(token: string) {
     return jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as {
         userId: string, tokenVersion: number, role: string
