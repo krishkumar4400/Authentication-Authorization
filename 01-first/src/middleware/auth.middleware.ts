@@ -8,7 +8,7 @@ interface AccessTokenPayload extends jwt.JwtPayload {
 
 const isAuth = (req: Request, res: Response, next: NextFunction) => {
     try {
-        const accessToken = req.cookies?.accessToken;
+        const accessToken = req.cookies?.accessToken as string | undefined;
 
         if (!accessToken || typeof accessToken !== "string") {
             return res.status(401).json({
@@ -32,7 +32,7 @@ const isAuth = (req: Request, res: Response, next: NextFunction) => {
         console.error("Auth middleware error:", error);
         return res.status(401).json({
             success: false,
-            message: "Invalid or expired token"
+            message: error
         });
     }
 };

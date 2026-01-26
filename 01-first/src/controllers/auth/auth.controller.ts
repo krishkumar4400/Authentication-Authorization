@@ -39,7 +39,7 @@ export async function register(req: Request, res: Response) {
 
         const refreshToken = generateRefreshToken(user._id, user.tokenVersion, user.role);
 
-        const verifyUrl = `${getAppUrl}/auth/verify-email?token=${accessToken}`;
+        const verifyUrl = `${getAppUrl()}/api/auth/verify-email?token=${accessToken}`;
 
         await sendMail(
             user.email,
@@ -187,5 +187,20 @@ export async function verifyEmail(req: Request, res: Response) {
         });
     } catch (error) {
         console.log("Error while verifying email\n", error);
+    }
+}
+
+export async function refreshToken(req:Request, res:Response) {
+    try {
+        const refreshToken = req.cookies?.refreshToken as string | undefined;
+        if (!refreshToken) {
+            
+        }
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false 
+        });
     }
 }
