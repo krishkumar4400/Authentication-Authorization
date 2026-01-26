@@ -11,6 +11,7 @@ function getAppUrl() {
     return process.env.APP_URL || `http://localhost:${process.env.PORT}`;
 }
 
+// 
 export async function register(req: Request, res: Response) {
     try {
         const { name, email, password } = req.body;
@@ -77,6 +78,7 @@ export async function register(req: Request, res: Response) {
     }
 }
 
+// user login controller function
 export async function login(req: Request, res: Response) {
     try {
         const { email, password } = req.body;
