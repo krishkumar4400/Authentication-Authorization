@@ -10,6 +10,7 @@ const isAuth = (req: Request, res: Response, next: NextFunction) => {
     try {
         const accessToken = req.cookies?.accessToken as string | undefined;
 
+        
         if (!accessToken || typeof accessToken !== "string") {
             return res.status(401).json({
                 success: false,

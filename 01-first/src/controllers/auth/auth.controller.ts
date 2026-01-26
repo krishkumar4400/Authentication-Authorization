@@ -190,17 +190,69 @@ export async function verifyEmail(req: Request, res: Response) {
     }
 }
 
-export async function refreshToken(req:Request, res:Response) {
+export async function refreshToken(req: Request, res: Response) {
     try {
         const refreshToken = req.cookies?.refreshToken as string | undefined;
         if (!refreshToken) {
-            
+            return res.status(401).json({
+                message: "Refresh token is missing",
+                success: false
+            });
         }
+
+        const payload = verifyRefreshToken(refreshToken);
+
+        const user = await User.findById(payload.userId);
+        if (!user) {
+            return res.status(401).json({
+                message: "Incorrect user id",
+                success: false
+            });
+        }
+
+        if (user.tokenVersion !== payload.tokenVersion) {
+            return res.status(401).json({
+                message: "token is expired",
+                success: false
+            });
+        }
+
+        const newAccessToken = generateAccessToken(user._id, user.tokenVersion, user.role);
+
+        const newRefreshToken = generateRefreshToken(user._id, user.tokenVersion, user.role);
+
+        res
+            .cookie("refreshToken", newRefreshToken, {
+                httpOnly: true,
+                secure: nodeEnv === "production",
+                sameSite: nodeEnv === "production" ? "none" : "lax",
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+            })
+            .status(200)
+            .json({
+                message: "token refreshed",
+                success: true,
+                accessToken: newAccessToken,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    role: user.role,
+                    isEmailVerified: user.isEmailVerified,
+                    twoFactorEnabled: user.twoFactorEnabled
+                }
+            });
+
     } catch (error) {
         console.log(error);
         return res.status(500).json({
             message: "Internal server error",
-            success: false 
+            success: false
         });
+    }
+}
+
+export function verifyRefreshToken(token: string) {
+    return jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as {
+        userId: string, tokenVersion: number, role: string
     }
 }
