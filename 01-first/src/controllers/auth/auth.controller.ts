@@ -262,3 +262,30 @@ export function verifyRefreshToken(token: string) {
     }
 }
 
+export const logout = async (req: Request, res: Response) => {
+    if (!req.user?.userId) {
+        return res.status(401).json({
+            message: "You can't logout",
+            success: false
+        });
+    }
+
+    res
+        .clearCookie("accessToken", { path: '/' })
+        .status(200).json({
+            message: "Logged out",
+            success: true
+        });
+}
+
+export async function forgotPassowrd(req: Request, res: Response) {
+    try {
+        
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+}
