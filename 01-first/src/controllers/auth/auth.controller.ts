@@ -190,6 +190,7 @@ export async function verifyEmail(req: Request, res: Response) {
     }
 }
 
+//  controller function to generate and reset the token
 export async function refreshToken(req: Request, res: Response) {
     try {
         const refreshToken = req.cookies?.refreshToken as string | undefined;
