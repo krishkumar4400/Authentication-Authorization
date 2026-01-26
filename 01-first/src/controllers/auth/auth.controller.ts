@@ -146,6 +146,7 @@ export async function login(req: Request, res: Response) {
     }
 }
 
+//  controller function to verify user email 
 export async function verifyEmail(req: Request, res: Response) {
     try {
         // const userId = req.userId;
