@@ -13,6 +13,7 @@ export interface IUser extends Document {
     tokenVersion: number,
     resetPasswordToken: string,
     resetPasswordExpires: Date,
+    createdAt: Date
 };
 
 
@@ -70,6 +71,10 @@ const userSchema = new Schema<IUser>({
     resetPasswordExpires: {
         type: Date,
         default: undefined
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now()
     }
 }, {
     timestamps: true

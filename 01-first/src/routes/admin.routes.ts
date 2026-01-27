@@ -1,19 +1,46 @@
 import { Request, Response, Router } from "express";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import requireRole from "../middleware/requireRole.js";
+import User from "../Models/user.model.js";
 
 const adminRouter = Router();
 
-adminRouter.get("/users", requireAuth, requireRole, (req: Request, res: Response) => {
+adminRouter.get(
+  "/users",
+  requireAuth,
+  requireRole("admin"),
+  async (req: Request, res: Response) => {
     try {
-        
+      const users = await User.find(
+        {},
+        {
+          email: 1,
+          role: 1,
+          isEmailVerified: 1,
+          createdAt: 1,
+        },
+      ).sort({ createdAt: -1 });
+
+      const result = users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        role: u.role,
+        isEmailVerified: u.isEmailVerified,
+        createdAt: u.createdAt,
+      }));
+
+      return res.json({
+        users: result,
+        success: true,
+      });
     } catch (error) {
-        console.log(error);
-        return res.status(500).json({
-            message: "internal server error",
-            success: false
-        });
+      console.log(error);
+      return res.status(500).json({
+        message: "internal server error",
+        success: false,
+      });
     }
-});
+  },
+);
 
 export default adminRouter;
