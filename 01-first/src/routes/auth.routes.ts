@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validate } from "../middleware/validate.js";
 import { loginSchema, registerSchema } from "../schemas/auth.schema.js";
-import { login, logout, refreshToken, register, verifyEmail } from "../controllers/auth/auth.controller.js";
+import { forgotPassowrd, login, logout, refreshToken, register, verifyEmail } from "../controllers/auth/auth.controller.js";
 import isAuth from "../middleware/auth.middleware.js";
 
 // instance of express router
@@ -21,5 +21,8 @@ authRouter.post('/refresh', refreshToken);
 
 // logout route
 authRouter.post('/logout', isAuth, logout);
+
+// forgot password - reset password
+authRouter.post('/reset-password', forgotPassowrd);
 
 export default authRouter;

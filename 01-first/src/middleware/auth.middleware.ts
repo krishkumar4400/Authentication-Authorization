@@ -39,3 +39,21 @@ const isAuth = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export default isAuth;
+
+export const checkRole = (req:Request, res: Response, next: NextFunction) => {
+    try {
+        const accessToken = req.cookies?.accessToken as string || undefined;
+        if(!accessToken || typeof accessToken !== "string") {
+            return res.status(401).json({
+
+            })
+        } 
+        next();
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false 
+        });
+    }
+}

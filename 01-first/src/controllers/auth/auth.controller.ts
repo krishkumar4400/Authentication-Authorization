@@ -1,9 +1,10 @@
-import { Request, Response } from "express";
+import { raw, Request, Response } from "express";
 import User from "../../Models/user.model.js";
 import { hashPassword, verifyPassword } from "../../utils/password.js";
 import { generateAccessToken, generateRefreshToken } from "../../utils/jwtToken.js";
 import { sendMail } from "../../config/nodeMailer.js";
 import jwt from "jsonwebtoken";
+import crypto from 'crypto';
 
 const nodeEnv = process.env.NODE_ENV;
 
@@ -280,12 +281,103 @@ export const logout = async (req: Request, res: Response) => {
 
 export async function forgotPassowrd(req: Request, res: Response) {
     try {
-        
+        const { email } = req.body as { email?: string };
+
+        if (!email) {
+            return res.status(400).json({
+                message: "Email is required",
+                success: false
+            });
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            return res.json({
+                message: "If an account with this email exists, we will send you a reset link",
+                success: true
+            });
+        }
+
+        const rawToken = crypto.randomBytes(31).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+        user.resetPasswordToken = tokenHash;
+        user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        await user.save();
+
+        const resetUrl = `${getAppUrl}/api/auth/reset-password?token=${rawToken}`;
+        await sendMail(
+            user.email,
+            "Reset your password",
+            `<p>You requested password reset. click on the below link to reset the password:</p>\n
+            <p><a href="${resetUrl}">${resetUrl}</a></p>
+            `,
+        );
+
+        return res.status(400).json({
+            message: "If an account with this email exists, we will send you a reset link",
+            success: true
+        });
+
     } catch (error) {
         console.log(error);
         return res.status(500).json({
             message: "Internal server error",
             success: false
         });
+    }
+}
+
+export async function resetPassword(req: Request, res: Response) {
+    try {
+        const { token, newPassword } = req.body as { token?: string; newPassword?: string };
+        if (!token) {
+            return res.status(400).json({
+                message: "Reset token is missing",
+                success: false
+            });
+        }
+
+        if (!newPassword || newPassword.length < 3) {
+            return res.status(400).json({
+                message: "Password must be atleast 6 character long",
+                success: false
+            });
+        }
+
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+        const user = await User.findOne({ resetPasswordToken: tokenHash, resetPasswordExpires: { $gt: new Date() } }); // expiry must be in future
+        if (!user) {
+            return res.status(401).json({
+                message: "Token is invalid or expired",
+                success: false
+            });
+        }
+
+        const isValid = await verifyPassword(user.password, newPassword);
+
+        if (isValid) {
+            return res.status(401).json({
+                message: "Passord has used before",
+                success: false
+            });
+        }
+
+        const hashedPassword = await hashPassword(newPassword);
+
+        user.password = hashedPassword;
+        await user.save();
+
+
+
+
+
+
+
+    } catch (error) {
+        console.error(error);
     }
 }
