@@ -8,11 +8,28 @@ import {
 import { sendMail } from "../../config/nodeMailer.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { GoogleAuth, OAuth2Client } from "google-auth-library";
 
 const nodeEnv = process.env.NODE_ENV;
 
 function getAppUrl() {
   return process.env.APP_URL || `http://localhost:${process.env.PORT}`;
+}
+
+async function getGoogleClient() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Google client id or secret is missing");
+  }
+
+  return new OAuth2Client({
+    clientId,
+    clientSecret,
+    redirectUri,
+  });
 }
 
 // user register controller function
@@ -450,6 +467,124 @@ export async function toggleRole(req: Request, res: Response) {
     });
   } catch (error) {
     console.error(error);
+    return res.status(500).json({
+      message: "Internal server error",
+      success: false,
+    });
+  }
+}
+
+export async function googleAuthStartHandler(req: Request, res: Response) {
+  try {
+    const client = getGoogleClient();
+    const url = (await client).generateAuthUrl({
+      access_type: "offline",
+      prompt: "consent",
+      scope: ["openid", "email", "profile"],
+    });
+
+    res.redirect(url);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Internal server error",
+      success: false,
+    });
+  }
+}
+
+export async function googleAuthCallbackHandler(req: Request, res: Response) {
+  try {
+    const code = req.query.code as string | undefined;
+
+    if (!code) {
+      return res.status(400).json({
+        message: "Missing code in callback",
+        success: false,
+      });
+    }
+
+    const client = await getGoogleClient();
+    const { tokens } = await client.getToken(code);
+
+    // console.log(tokens, code);
+
+    if (!tokens.id_token) {
+      return res.status(400).json({
+        message: "No google id_token is present",
+        success: false,
+      });
+    }
+
+    // verify id token and read the user info from it
+    const ticket = await client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID as string,
+    });
+
+    const payload = ticket.getPayload();
+
+    const email = payload?.email;
+    const emailVerified = payload?.email_verified;
+    console.log(payload?.name, payload?.picture);
+
+    if (!email || !emailVerified) {
+      return res.status(400).json({
+        message: "Google email is not verified",
+        success: false,
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    let user = await User.findOne({ email: normalizedEmail });
+    if (user) {
+      user.isEmailVerified = true;
+      await user.save();
+    } else {
+      const randomPasssword = crypto.randomBytes(16).toString("hex");
+      const password = await hashPassword(randomPasssword);
+      user = await User.create({
+        email: normalizedEmail,
+        isEmailVerified: true,
+        name: payload.name,
+        password,
+        role: "user",
+        twoFactorEnabled: false,
+      });
+    }
+
+    const accessToken = generateAccessToken(
+      user._id,
+      user.tokenVersion,
+      user.role as "user" | "admin",
+    );
+    const refreshToken = generateRefreshToken(
+      user._id,
+      user.tokenVersion,
+      user.role as "user" | "admin",
+    );
+
+    res
+      .cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === "development" ? "lax" : "none",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      })
+      .json({
+        message: "You are now logged in",
+        success: true,
+        accessToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          isEmailVerified: user.isEmailVerified,
+        },
+      });
+  } catch (error) {
+    console.log(error);
     return res.status(500).json({
       message: "Internal server error",
       success: false,
