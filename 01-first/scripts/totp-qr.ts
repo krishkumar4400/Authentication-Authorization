@@ -2,8 +2,8 @@ import QRCode from 'qrcode';
 
 const otpAuthUrl = process.argv[2];
 
-if(!otpAuthUrl) {
-    throw new Error("Pass otpAuthUrl as argument"); 
+if (!otpAuthUrl) {
+    throw new Error("Pass otpAuthUrl as argument");
 }
 
 async function main() {
@@ -13,5 +13,5 @@ async function main() {
 
 main().catch((error) => {
     console.error(error);
-    process.exit(1); 
+    process.exit(1);
 });
