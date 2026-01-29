@@ -164,10 +164,10 @@ export async function login(req: Request, res: Response) {
         secret: user.twoFactorSecret
       });
 
-      if(!isValid) {
+      if (!isValid) {
         return res.status(400).json({
           message: "Invalid two factor code",
-          success: false 
+          success: false
         });
       }
 
@@ -688,7 +688,7 @@ export async function twoFAVerify(req: Request, res: Response) {
       });
     }
 
-    const {code} = req.body as { code?: string };
+    const { code } = req.body as { code?: string };
 
     if (!code) {
       return res.status(401).json({
@@ -728,10 +728,10 @@ export async function twoFAVerify(req: Request, res: Response) {
       secret: user.twoFactorSecret
     });
 
-    if(!isValid) {
+    if (!isValid) {
       return res.status(400).json({
         message: "Invalid two factor code",
-        success: false 
+        success: false
       });
     }
 
@@ -740,7 +740,7 @@ export async function twoFAVerify(req: Request, res: Response) {
 
     return res.status(200).json({
       message: "2FA enabled successfully",
-      success: true 
+      success: true
     });
 
 
