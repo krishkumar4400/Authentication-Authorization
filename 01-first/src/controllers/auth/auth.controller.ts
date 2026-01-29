@@ -9,6 +9,7 @@ import { sendMail } from "../../config/nodeMailer.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { GoogleAuth, OAuth2Client } from "google-auth-library";
+import { OTP, verify } from 'otplib';
 
 const nodeEnv = process.env.NODE_ENV;
 
@@ -136,6 +137,40 @@ export async function login(req: Request, res: Response) {
         message: "Incorrect email or password",
         success: false,
       });
+    }
+
+    // 2FA authentication
+    const { twoFactorCode } = req.body;
+    if (user.twoFactorEnabled) {
+      if (!twoFactorCode || typeof twoFactorCode !== "string") {
+        return res.status(400).json({
+          message: "Two factor code is required",
+          success: false,
+        });
+      }
+
+      if (!user.twoFactorSecret) {
+        return res.status(400).json({
+          message: "Two factor misconfigured for this account",
+          success: false,
+        });
+      }
+
+      // verify the code using otplib
+      const otp = new OTP();
+
+      const isValid = otp.verify({
+        token: twoFactorCode,
+        secret: user.twoFactorSecret
+      });
+
+      if(!isValid) {
+        return res.status(400).json({
+          message: "Invalid two factor code",
+          success: false 
+        });
+      }
+
     }
 
     const accessToken = generateAccessToken(
@@ -592,3 +627,128 @@ export async function googleAuthCallbackHandler(req: Request, res: Response) {
   }
 }
 
+export async function twoFASetup(req: Request, res: Response) {
+  try {
+    const authReq = req as any;
+    const authUser = authReq.user;
+
+    if (!authUser) {
+      return res.status(401).json({
+        message: "Not authenticated",
+        success: false,
+      });
+    }
+
+    const user = await User.findById(authUser.userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+        success: false,
+      });
+    }
+
+    const otp = new OTP();
+    const secret = otp.generateSecret();
+    console.log(secret);
+    const issuer = "NodeAdvanceAuthApp";
+
+    // Generate a TOTP token
+    const token = await otp.generate({ secret });
+
+    const otpAuthUri = otp.generateURI({ issuer, label: user.email, secret });
+
+    user.twoFactorSecret = secret;
+    user.twoFactorEnabled = false;
+    await user.save();
+    return res.json({
+      message: "2FA setup is done",
+      otpAuthUri,
+      success: true,
+      secret
+    });
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Internal server error",
+      success: false
+    });
+  }
+}
+
+export async function twoFAVerify(req: Request, res: Response) {
+  try {
+    const authReq = req as any;
+    const authUser = authReq.user;
+
+    if (!authUser) {
+      return res.status(401).json({
+        message: "Not authenticated",
+        success: false
+      });
+    }
+
+    const {code} = req.body as { code?: string };
+
+    if (!code) {
+      return res.status(401).json({
+        message: "Two factor code is required",
+        success: false
+      });
+    }
+
+    const user = await User.findById(authUser.userId);
+    if (!user) {
+      return res.status(401).json({
+        message: "Incorrect user id",
+        success: false
+      });
+    }
+
+    if (!user.twoFactorSecret || user.twoFactorSecret === '') {
+      return res.status(401).json({
+        message: "You don't have 2FA setup yet.",
+        success: false
+      });
+    }
+
+    if (!code || typeof code !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Two-factor code is required"
+      });
+    }
+
+
+    // Verify a token
+    const otp = new OTP();
+
+    const isValid = otp.verify({
+      token: code,
+      secret: user.twoFactorSecret
+    });
+
+    if(!isValid) {
+      return res.status(400).json({
+        message: "Invalid two factor code",
+        success: false 
+      });
+    }
+
+    user.twoFactorEnabled = true;
+    await user.save();
+
+    return res.status(200).json({
+      message: "2FA enabled successfully",
+      success: true 
+    });
+
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Internal server error",
+      success: false
+    });
+  }
+}
