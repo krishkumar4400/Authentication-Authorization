@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ts-auth-deployment
+  labels:
+    name: ts-auth-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ts-auth-deployment
+  template:
+    metadata:
+      labels:
+        app: ts-auth-deployment
+    spec:
+      containers:
+        - name: ts-auth
+          image: krishkumar4400/ts-auth
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 3000
+              name: ts-auth-port
