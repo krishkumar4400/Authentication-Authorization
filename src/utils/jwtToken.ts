@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import env from "../config/env.js";
 
 interface JwtPayload {
   userId: string;
@@ -7,8 +8,8 @@ interface JwtPayload {
   role: string;
 }
 
-const accessSecret = process.env.JWT_ACCESS_SECRET;
-const refreshSecret = process.env.JWT_REFRESH_SECRET;
+const accessSecret = env.JWT_ACCESS_SECRET;
+const refreshSecret = env.JWT_REFRESH_SECRET;
 
 if (!accessSecret || !refreshSecret) {
   throw new Error("JWT secrets are not configured");
@@ -52,37 +53,29 @@ export const generateRefreshToken = (
   });
 };
 
-/**
- const getJwtSecrets = () => {
-  const accessSecret = process.env.JWT_ACCESS_SECRET;
-  const refreshSecret = process.env.JWT_REFRESH_SECRET;
+export const verifyToken = (token: string): JwtPayload | null => {
+  try {
+    const decoded = jwt.verify(token, accessSecret);
 
-  if (!accessSecret || !refreshSecret) {
-    throw new Error("JWT secrets are not configured");
-  }
+    if (typeof decoded === "string") {
+      return null;
+    }
 
-  return { accessSecret, refreshSecret };
-};
+    if (
+      typeof decoded.userId !== "string" ||
+      typeof decoded.tokenVersion !== "number" ||
+      typeof decoded.role !== "string"
+    ) {
+      return null;
+    }
 
-export const generateAccessToken = (
-  userId: mongoose.Types.ObjectId,
-  tokenVersion: number,
-  role: string
-): string => {
-  const { accessSecret } = getJwtSecrets();
-
-  return jwt.sign(
-    { userId: userId.toString(), tokenVersion, role },
-    accessSecret,
-    { expiresIn: "15m" }
-  );
-};
- */
-
-export const verifyToken = (token: string) => {
-  return jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as {
-    userId: string;
-    tokenVersion: number;
-    role: 'user' | 'admin';
+    return {
+      userId: decoded.userId,
+      tokenVersion: decoded.tokenVersion,
+      role: decoded.role,
+    };
+  } catch (error) {
+    console.log(error);
+    return null;
   }
 };

@@ -1,12 +1,8 @@
-import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { verifyToken } from "../utils/jwtToken.js";
 import User from "../Models/user.model.js";
-
-interface AccessTokenPayload extends jwt.JwtPayload {
-  userId: string;
-  tokenVersion: number;
-}
+import type { NextFunction, Request, Response } from "express";
+import type { AccessTokenPayload } from "../types/auth.types.js";
 
 const isAuth = (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -57,13 +53,21 @@ export const requireAuth = async (
     }
 
     const token = authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        message: "auth token is missing",
+        success: false,
+      });
+    }
     const payload = verifyToken(token);
 
-    // req.user = {
-    //   userId: payload.userId,
-    //   tokenVersion: payload.tokenVersion,
-    //   role: payload.role,
-    // };
+    if (!payload) {
+      return res.status(401).json({
+        message: "invalid or expired auth token",
+        success: false,
+      });
+    }
 
     const user = await User.findById(payload.userId);
 

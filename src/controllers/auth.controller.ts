@@ -1,28 +1,37 @@
-import { raw, Request, Response } from "express";
-import User from "../../Models/user.model.js";
-import { hashPassword, verifyPassword } from "../../utils/password.js";
+import type { Request, Response } from "express";
+import { hashPassword, verifyPassword } from "../utils/password.js";
+import { sendMail } from "../config/nodeMailer.js";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { OTP, verify } from "otplib";
+
+import env from "../config/env.js";
+import User, { type IUser } from "../Models/user.model.js";
+import type { LoginBody, RegisterBody } from "../types/auth.types.js";
+
+import {
+  GoogleAuth,
+  OAuth2Client,
+  type OAuth2ClientOptions,
+} from "google-auth-library";
+
 import {
   generateAccessToken,
   generateRefreshToken,
-} from "../../utils/jwtToken.js";
-import { sendMail } from "../../config/nodeMailer.js";
-import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import { GoogleAuth, OAuth2Client } from "google-auth-library";
-import { OTP, verify } from 'otplib';
+} from "../utils/jwtToken.js";
 
-const nodeEnv = process.env.NODE_ENV;
+const nodeEnv = env.NODE_ENV;
 
 function getAppUrl() {
   return process.env.APP_URL || `http://localhost:${process.env.PORT}`;
 }
 
-async function getGoogleClient() {
+async function getGoogleClient(): Promise<OAuth2Client> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
 
-  if (!clientId || !clientSecret) {
+  if (!clientId || !clientSecret || !redirectUri) {
     throw new Error("Google client id or secret is missing");
   }
 
@@ -34,13 +43,16 @@ async function getGoogleClient() {
 }
 
 // user register controller function
-export async function register(req: Request, res: Response) {
+export async function register(
+  req: Request<{}, {}, RegisterBody>,
+  res: Response,
+) {
   try {
     const { name, email, password } = req.body;
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    let user = await User.findOne({ email: normalizedEmail });
+    let user: IUser | null = await User.findOne({ email: normalizedEmail });
     if (user) {
       return res.status(409).json({
         message: "User already exists",
@@ -48,7 +60,7 @@ export async function register(req: Request, res: Response) {
       });
     }
 
-    const hashedPassword: string = await hashPassword(password);
+    const hashedPassword = await hashPassword(password);
 
     user = await User.create({
       name,
@@ -93,7 +105,7 @@ export async function register(req: Request, res: Response) {
         sameSite: nodeEnv === "production" ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
-      .status(200)
+      .status(201)
       .json({
         message: "User registered successfully",
         success: true,
@@ -109,13 +121,13 @@ export async function register(req: Request, res: Response) {
 }
 
 // user login controller function
-export async function login(req: Request, res: Response) {
+export async function login(req: Request<{}, {}, LoginBody>, res: Response) {
   try {
     const { email, password } = req.body;
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    const user = await User.findOne({ email: normalizedEmail });
+    const user: IUser | null = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return res.status(401).json({
@@ -161,16 +173,15 @@ export async function login(req: Request, res: Response) {
 
       const isValid = otp.verify({
         token: twoFactorCode,
-        secret: user.twoFactorSecret
+        secret: user.twoFactorSecret,
       });
 
       if (!isValid) {
         return res.status(400).json({
           message: "Invalid two factor code",
-          success: false
+          success: false,
         });
       }
-
     }
 
     const accessToken = generateAccessToken(
@@ -204,7 +215,7 @@ export async function login(req: Request, res: Response) {
         success: true,
         accessToken,
         user: {
-          id: user.id,
+          id: user._id,
           email: user.email,
           role: user.role,
           isEmailVerified: user.isEmailVerified,
@@ -572,7 +583,7 @@ export async function googleAuthCallbackHandler(req: Request, res: Response) {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    let user = await User.findOne({ email: normalizedEmail });
+    let user: IUser | null = await User.findOne({ email: normalizedEmail });
     if (user) {
       user.isEmailVerified = true;
       await user.save();
@@ -582,7 +593,7 @@ export async function googleAuthCallbackHandler(req: Request, res: Response) {
       user = await User.create({
         email: normalizedEmail,
         isEmailVerified: true,
-        name: payload.name,
+        name: payload.name || "user",
         password,
         role: "user",
         twoFactorEnabled: false,
@@ -612,7 +623,7 @@ export async function googleAuthCallbackHandler(req: Request, res: Response) {
         success: true,
         accessToken,
         user: {
-          id: user.id,
+          id: user._id,
           email: user.email,
           role: user.role,
           isEmailVerified: user.isEmailVerified,
@@ -664,14 +675,13 @@ export async function twoFASetup(req: Request, res: Response) {
       message: "2FA setup is done",
       otpAuthUri,
       success: true,
-      secret
+      secret,
     });
-
   } catch (error) {
     console.log(error);
     return res.status(500).json({
       message: "Internal server error",
-      success: false
+      success: false,
     });
   }
 }
@@ -684,7 +694,7 @@ export async function twoFAVerify(req: Request, res: Response) {
     if (!authUser) {
       return res.status(401).json({
         message: "Not authenticated",
-        success: false
+        success: false,
       });
     }
 
@@ -693,7 +703,7 @@ export async function twoFAVerify(req: Request, res: Response) {
     if (!code) {
       return res.status(401).json({
         message: "Two factor code is required",
-        success: false
+        success: false,
       });
     }
 
@@ -701,37 +711,36 @@ export async function twoFAVerify(req: Request, res: Response) {
     if (!user) {
       return res.status(401).json({
         message: "Incorrect user id",
-        success: false
+        success: false,
       });
     }
 
-    if (!user.twoFactorSecret || user.twoFactorSecret === '') {
+    if (!user.twoFactorSecret || user.twoFactorSecret === "") {
       return res.status(401).json({
         message: "You don't have 2FA setup yet.",
-        success: false
+        success: false,
       });
     }
 
     if (!code || typeof code !== "string") {
       return res.status(400).json({
         success: false,
-        message: "Two-factor code is required"
+        message: "Two-factor code is required",
       });
     }
-
 
     // Verify a token
     const otp = new OTP();
 
     const isValid = otp.verify({
       token: code,
-      secret: user.twoFactorSecret
+      secret: user.twoFactorSecret,
     });
 
     if (!isValid) {
       return res.status(400).json({
         message: "Invalid two factor code",
-        success: false
+        success: false,
       });
     }
 
@@ -740,15 +749,13 @@ export async function twoFAVerify(req: Request, res: Response) {
 
     return res.status(200).json({
       message: "2FA enabled successfully",
-      success: true
+      success: true,
     });
-
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({
       message: "Internal server error",
-      success: false
+      success: false,
     });
   }
 }

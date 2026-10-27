@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import env from "./env.js";
 
-if (env.SMTP_HOST || env.SMTP_PORT || env.SMTP_USER || env.SMTP_PASS) {
+if (!env.SMTP_HOST || !env.SMTP_PORT || !env.SMTP_USER || !env.SMTP_PASS) {
   throw new Error("SMTP environment variables missing");
 }
 
