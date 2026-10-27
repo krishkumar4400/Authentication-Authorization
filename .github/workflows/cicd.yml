@@ -12,7 +12,7 @@ on:
             - ".github/workflows/**"
             - ".dockerignore"
             - ".gitignore"
-            - "infrastructure"
+            - "infrastructure/**"
 
 jobs:
     build-test:
