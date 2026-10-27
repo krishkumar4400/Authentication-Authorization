@@ -1,0 +1,10 @@
+name: ts-auth
+
+services:
+  backend:
+    container_name: backend
+    
+  db:
+    container_name: db
+  redis:
+    container_name: redis
